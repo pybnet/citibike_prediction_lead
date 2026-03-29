@@ -10,6 +10,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: 04_Deployment/retrain_image
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,22 +27,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('/04_Deployment/retrain_image/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('04_Deployment/retrain_image/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # requirements.txt is in 04_Deployement/retrain_image/ (relative to repo root = citibike_prediction/)
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r /04_Deployment/retrain_image/requirements.txt
+          pip install -r requirements.txt
           pip install pytest pytest-mock
 
-      # pytest.ini and tests/ are at repo root — no working-directory needed
-      # PYTHONPATH points to 04_Deployement/retrain_image/ so retrain.py is importable
       - name: Run tests
         env:
-          PYTHONPATH: ${{ github.workspace }}/04_Deployement/retrain_image
+          PYTHONPATH: ${{ github.workspace }}/04_Deployment/retrain_image
         run: |
           pytest tests/test_retrain.py -v --tb=short
 
@@ -47,4 +48,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: .pytest_cache/
+          path: 04_Deployment/retrain_image/.pytest_cache/
