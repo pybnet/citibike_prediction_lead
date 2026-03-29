@@ -335,8 +335,8 @@ class TestSignatureInference:
 
 class TestSetupMlflow:
 
-    @patch("retrain.MlflowClient")
-    @patch("retrain.mlflow.set_tracking_uri")
+    @patch("retrain_image.retrain.MlflowClient")
+    @patch("retrain_image.retrain.mlflow.set_tracking_uri")
     def test_creates_experiment_if_missing(self, mock_uri, mock_client_cls):
         mock_client = MagicMock()
         mock_client.get_experiment_by_name.return_value = None
@@ -347,8 +347,8 @@ class TestSetupMlflow:
         mock_client.create_experiment.assert_called_once_with("new_experiment")
         assert eid == "42"
 
-    @patch("retrain.MlflowClient")
-    @patch("retrain.mlflow.set_tracking_uri")
+    @patch("retrain_image.retrain.MlflowClient")
+    @patch("retrain_image.retrain.mlflow.set_tracking_uri")
     def test_uses_existing_experiment(self, mock_uri, mock_client_cls):
         mock_exp = MagicMock()
         mock_exp.experiment_id = "99"
@@ -400,10 +400,10 @@ class TestPromoteToStaging:
 
 class TestLogAndRegisterModel:
 
-    @patch("retrain.mlflow.sklearn.log_model")
-    @patch("retrain.mlflow.log_params")
-    @patch("retrain.mlflow.log_metric")
-    @patch("retrain.mlflow.start_run")
+    @patch("retrain_image.retrain.mlflow.sklearn.log_model")
+    @patch("retrain_image.retrain.mlflow.log_params")
+    @patch("retrain_image.retrain.mlflow.log_metric")
+    @patch("retrain_image.retrain.mlflow.start_run")
     def test_metrics_logged(self, mock_run, mock_metric, mock_params, mock_log_model, fitted_pipeline, X_y):
         _, _, X_test, y_test = X_y
         mock_run.return_value.__enter__ = MagicMock(
