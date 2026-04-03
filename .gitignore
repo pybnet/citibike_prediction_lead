@@ -16,6 +16,7 @@
 *.npz
 *.joblib
 *logs
+*.mov
 
 mlruns/
 

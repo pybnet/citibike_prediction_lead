@@ -3,6 +3,12 @@ import pandas as pd
 import holidays
 from datetime import date
 
+def safe_dayofweek(d, year, month):
+    try:
+        return pd.Timestamp(year=year, month=month, day=d).dayofweek
+    except ValueError:
+        return -1  # invalid day for this month, never matches
+
 def predict_from_user_date(dataset, request_datetime, model, weather_df, update_columns,
                            station_id=None):
     df = dataset.copy()
@@ -12,11 +18,20 @@ def predict_from_user_date(dataset, request_datetime, model, weather_df, update_
     month_req = request_datetime.month
     dow_req = request_datetime.dayofweek
 
-    # Filter historical data
+    # Fall back to closest previous month available if requested month not in dataset
+    if month_req not in df["month"].values:
+        available_months = sorted(df["month"].unique())
+        previous_months = [m for m in available_months if m < month_req]
+        month_req = previous_months[-1] if previous_months else available_months[0]
+
+    print(f"Request datetime: {request_datetime} (month: {month_req}, day of week: {dow_req})")
+    
+    year_ref = df["year"].iloc[0]
+
     df_filtered = df[
         (df["month"] == month_req) &
-        (df["day"].apply(lambda d: pd.Timestamp(year=df["year"].iloc[0], month=month_req, day=d).dayofweek) == dow_req)
-    ]
+        (df["day"].apply(lambda d: safe_dayofweek(d, year_ref, month_req)) == dow_req)
+]
 
     # filtrer station si nécessaire
     if station_id is not None:
