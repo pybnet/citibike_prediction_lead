@@ -1,6 +1,6 @@
-# CitiBike Flow Prediction
+# 🚲 CitiBike Flow Prediction — Full Stack MLOps Project
 
-![CI](https://github.com/<your-username>/<your-repo>/actions/workflows/test.yml/badge.svg)
+![CI](https://github.com//pybnet/citibike_prediction/actions/workflows/test.yml/badge.svg)
 
 > End-to-end MLOps pipeline predicting bike net flow at CitiBike stations in New York City — from data ingestion to automated retraining, monitoring, and real-time API inference.
 
@@ -9,6 +9,7 @@
 ## Table of Contents
 
 - [Project Overview](#-project-overview)
+- [Notebooks — Research & Exploration](#-notebooks--research--exploration)
 - [Architecture](#-architecture)
 - [Stack](#-stack)
 - [Repository Structure](#-repository-structure)
@@ -110,40 +111,84 @@ The system covers the full ML lifecycle:
 ## Repository Structure
 
 ```
-local_airflow_postgres_server/          ← Airflow + data stack (repo root)
-├── .github/
-│   └── workflows/
-│       └── test.yml                    ← GitHub Actions CI
-├── dags/
-│   └── monitoring_model.py             ← Monitoring & retraining DAG
-├── retrain_image/
-│   ├── retrain.py                      ← XGBoost training script (refactored)
-│   ├── requirements.txt
-│   └── Dockerfile
-├── data/
-│   ├── citibike/
-│   │   ├── reference/                  ← Reference dataset for drift
-│   │   └── data_drift/                 ← Incoming data for drift detection
-│   └── retrain_data/                   ← Export for retraining
-├── tests/
-│   └── test_retrain.py                 ← 36 unit tests
-├── pytest.ini
-└── docker-compose.yml                  ← Airflow stack
-
-local_mlflow_fastapi/                   ← Inference + tracking stack
-├── api/
-│   └── main.py                         ← FastAPI app
-├── streamlit_app.py                    ← Streamlit UI
-├── requirements.txt
-├── Dockerfile
-└── docker-compose.yaml                 ← MLflow + FastAPI + Streamlit stack
+.                                       ← repo root
+├── 01_Data/
+│   └── meteo_holidays_pierre.ipynb     ← Weather & public holidays data collection
+│
+├── 02_EDA/
+│   ├── building_eda_file.ipynb         ← Build EDA dataset: compute net flow per station,
+│   │                                      enrich with weather & holiday data
+│   └── eda.ipynb                       ← Exploratory Data Analysis
+│
+├── 03_Model/
+│   └── Preprocessing_Training_models.ipynb  ← First model: preprocessing + baseline training
+│
+└── 04_Deployement/
+    ├── local_mlflow_fastapi/           ← Inference + tracking stack
+    │   ├── api/
+    │   │   └── main.py                 ← FastAPI app
+    │   ├── streamlit_app.py            ← Streamlit UI
+    │   ├── requirements.txt
+    │   ├── Dockerfile
+    │   ├── .env.example
+    │   └── docker-compose.yaml         ← MLflow + FastAPI + Streamlit stack
+    │
+    ├── local_airflow_postgres_server/  ← Airflow + data stack
+    │   ├── .github/
+    │   │   └── workflows/
+    │   │       └── test.yml            ← GitHub Actions CI
+    │   ├── dags/
+    │   │   └── monitoring_model.py     ← Monitoring & retraining DAG
+    │   ├── data/
+    │   │   └── citibike/
+    │   │       ├── reference/          ← Reference dataset for drift
+    │   │       └── data_drift/         ← Incoming data for drift detection
+    │   ├── tests/
+    │   │   └── test_retrain.py         ← 36 unit tests
+    │   ├── pytest.ini
+    │   ├── .env.example
+    │   └── docker-compose.yml          ← Airflow stack
+    │
+    └── retrain_image/                  ← Docker image for model retraining
+        ├── retrain.py                  ← XGBoost training script (refactored into functions)
+        ├── requirements.txt
+        └── Dockerfile
 ```
+
+---
+
+## Notebooks — Research & Exploration
+
+The project follows a structured notebook workflow before production deployment.
+
+### `01_Data/` — Data Collection
+
+| Notebook | Description |
+|---|---|
+| `meteo_holidays_pierre.ipynb` | Fetches weather data (temperature, humidity, precipitation, wind speed, weather code) and public holidays for the NYC area. This data feeds the first version of the model as static enrichment before the automated pipeline was built. |
+
+### `02_EDA/` — Exploratory Data Analysis
+
+| Notebook | Description |
+|---|---|
+| `building_eda_file.ipynb` | Builds the analysis-ready dataset: computes the net bike flow per station per hour, joins weather data and holiday flags. This file is the input to the EDA notebook. |
+| `eda.ipynb` | Full exploratory analysis — distribution of net flows per station, temporal patterns (hour of day, day of week, seasonality), weather correlations, top 20 station selection, and baseline statistics. |
+
+### `03_Model/` — First Model
+
+| Notebook | Description |
+|---|---|
+| `Preprocessing_Training_models.ipynb` | End-to-end first model: preprocessing pipeline (imputation, encoding), benchmark of multiple regressors (Linear, Ridge, Lasso, ElasticNet, Random Forest, Extra Trees, XGBoost), evaluation vs naive baseline, and hyperparameter tuning. This notebook is the prototype for the production `retrain.py` script. |
+
+### `04_Deployement/` — Production
+
+The production system is split into three components described in detail below.
 
 ---
 
 ## Infrastructure — Two Docker Stacks
 
-The project is split into two independent Docker Compose stacks that communicate via `host.docker.internal`.
+The production deployment (`04_Deployement/`) is split into three components that communicate via `host.docker.internal`.
 
 ### Stack 1 · MLflow + FastAPI + Streamlit (`local_mlflow_fastapi`)
 
@@ -243,6 +288,27 @@ start
 
 ---
 
+### Component 3 · Retrain Image (`retrain_image/`)
+
+The Docker image used by Airflow's `DockerOperator` to retrain the model.
+
+| File | Role |
+|---|---|
+| `retrain.py` | Full training script refactored into importable functions |
+| `Dockerfile` | Builds the training image (`pybnet/citibikeproject:v1.x`) |
+| `requirements.txt` | Pinned dependencies for reproducible training |
+
+**Build & push:**
+```bash
+cd 04_Deployement/retrain_image
+docker build -t pybnet/citibikeproject:v1.4 .
+docker push pybnet/citibikeproject:v1.4
+```
+
+Airflow pulls this image automatically when retraining is triggered — no manual intervention needed.
+
+---
+
 ## ML Pipeline
 
 **Features (20):** station ID, temporal (year/month/day/hour/weekday), weather (temp, humidity, precipitation, wind), lag features (net flow t-1, t-2, t-24), rolling averages (3h, 24h), weather code group, holiday flag.
@@ -294,7 +360,7 @@ GitHub Actions runs on every push to `main`/`develop` and every pull request.
 
 **1. Clone the repo**
 ```bash
-git clone https://github.com/pybnet/citibike_prediction_lead.git
+git clone https://github.com/<your-username>/<your-repo>.git
 cd <your-repo>
 ```
 
@@ -333,13 +399,11 @@ Go to http://localhost:7860, select a station and an hour, choose whether you wa
 
 | Variable | Description |
 |---|---|
-| `AIRFLOW_UID` | Host user ID |
+| `AIRFLOW_UID` | Host user ID (Linux: `$(id -u)`) |
 | `RAPIDAPI_KEY` | Weather API key |
 | `EVIDENTLY_CLOUD_TOKEN` | Evidently Cloud token |
 | `EVIDENTLY_CLOUD_PROJECT_ID` | Evidently Cloud project ID |
 | `POSTGRES_AIRFLOW_USER/PASSWORD/DB` | Airflow metadata DB credentials |
 | `POSTGRES_DATA_USER/PASSWORD/DB` | CitiBike operational DB credentials |
-
----
 
 *Built with Python 3.10 · XGBoost · Apache Airflow 3 · MLflow · FastAPI · Streamlit · Docker*
